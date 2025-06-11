@@ -74,11 +74,8 @@ control MyIngress(inout headers hdr,
        tmp_mac = hdr.ethernet.dstAddr;
        hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
        hdr.ethernet.srcAddr = tmp_mac;
-       }
 
        //TODO: send the packet back to the same port
-    apply {
-    	swap_mac_addresses();
     	standard_metadata.egress_spec = standard_metadata.ingress_port;
     }
     
