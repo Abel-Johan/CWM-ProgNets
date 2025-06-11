@@ -14,9 +14,9 @@ ETH="eth0"
 
 # Switch side (Raspberry Pi)
 # The directory to your P4 program
-DIR="/home/pi/cwm-prognets/assignment3/"
+DIR="/home/pi/CWM-ProgNets/assignment4/"
 # Modify the name of P4 program here
-P4_NAME="myprog"
+P4_NAME="reflector"
 # The name of the first interface on Raspberry Pi
 INT1="eth0"
 # The name of the second interface on Raspberry Pi
