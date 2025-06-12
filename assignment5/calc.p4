@@ -1,4 +1,6 @@
 /* -*- P4_16 -*- */
+// For stage 1, revert back to original
+// Comment out 78-84, 125-130, 163-173, 177-179, 183-185, 189-191, 195-197, 201-203
 
 /*
  * P4 Calculator
@@ -68,15 +70,16 @@ const bit<8>  P4CALC_OR    = 0x7c;   // '|'
 const bit<8>  P4CALC_CARET = 0x5e;   // '^'
 
 header p4calc_t {
-    bit<8>  op;
+    // bit<8> op;
     /* TODO
      * fill p4calc_t header with p, four, ver, op, operand_a, operand_b, and res
    entries based on above protocol header definition.
+       you must have the headers defined in the correct order! so must be p first, then four, then ver, then op, etc.
      */
     bit<8> p;
     bit<8> four;
     bit<8> ver;
-    // bit<8> op; already included in line 71?
+    bit<8> op;
     bit<32> operand_a;
     bit<32> operand_b;
     bit<32> res;
@@ -161,14 +164,14 @@ control MyIngress(inout headers hdr,
         // put result into hdr.p4calc.res
         hdr.p4calc.res = result;
         
-	// swap mac address
-	bit<48> tmp_mac;
-	tmp_mac = hdr.ethernet.dstAddr;
-	hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
-	hdr.ethernet.srcAddr = tmp_mac;
-	
-	//send it back to the same port
-	standard_metadata.egress_spec = standard_metadata.ingress_port;
+        // swap mac address
+        bit<48> tmp_mac;
+        tmp_mac = hdr.ethernet.dstAddr;
+        hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
+        hdr.ethernet.srcAddr = tmp_mac;
+        
+        //send it back to the same port
+        standard_metadata.egress_spec = standard_metadata.ingress_port;
     }
 
     action operation_add() {
