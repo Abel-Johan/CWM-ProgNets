@@ -3,8 +3,8 @@
 /*
  * P4 Traffic Lights v1
  * The aim of the P4 script is to be the traffic light.
- * It is supposed to take data from the Python file regarding how many cars are at each junction.
- * The P4 script then sends a red/amber/green signal at each junction back to the Python file.
+ * It is supposed to take data from the Python file regarding how many cars are at each junction entrance.
+ * The P4 script then sends a red/green signal at each entrance back to the Python file.
  * The Python file then simulates traffic flow (e.g. number of cars decrease as they start to pass through the junction, etc.)
  *
  * This program implements a simple protocol. It can be carried over Ethernet
@@ -15,23 +15,24 @@
  
  * The Protocol header looks like this:
  *
- *        0                1                  2              3
- * +----------------+----------------+----------------+----------------+
- * |      P         |       4        |     Version    | Current_Green  |
- * +----------------+----------------+----------------+----------------+
+ *         0                1                 2               3                4
+ * +----------------+----------------+----------------+----------------+----------------+
+ * |       P        |       4        |     Version    |   Green_Light  |    Green_Car   |
+ * +----------------+----------------+----------------+----------------+----------------+
  * |     J1_car     |     J2_car     |     J3_car     |     J4_car     |
  * +----------------+----------------+----------------+----------------+
- * |                              Operand B                            |
- * +----------------+----------------+----------------+----------------+
  * |   J1_result    |   J2_result    |   J3_result    |   J4_result    |
+ * +----------------+----------------+----------------+----------------+
+ * |   J1_newcar    |   J2_newcar    |   J3_newcar    |   J4_newcar    |
  * +----------------+----------------+----------------+----------------+
  *
  * P is an ASCII Letter 'P' (0x50)
  * 4 is an ASCII Letter '4' (0x34)
  * Version is currently 0.1 (0x01)
- * Current_Green is the current junction with a green light
- * JX_car is the number of cars at junction X
- * JX_result is what the traffic lights at junction X should turn to
+ * Green_Light is the current junction entrance with a green light
+ * Green_Car is the current number of cars at the green light entrance
+ * JX_car is the number of cars at entrance X
+ * JX_result is what the traffic lights at entrance X should turn to
  *
  * The device receives a packet, performs the requested operation, fills in the
  * result and sends the packet back out of the same port it came in on, while
@@ -42,8 +43,8 @@
  */
  
  
-include <core.p4>
-include <v1model.p4>
+#include <core.p4>
+#include <v1model.p4>
 
 
 /*
@@ -59,6 +60,9 @@ header ethernet_t {
     bit<16> etherType;
 }
 
+/* CONSTANTS */
+
+
 /*
  * This is a custom protocol header for the traffic light system. We'll use
  * etherType 0x1234 for it (see parser)
@@ -67,6 +71,10 @@ const bit<16> P4TRAFFIC_ETYPE = 0x1234;
 const bit<8>  P4TRAFFIC_P     = 0x50;   // 'P'
 const bit<8>  P4TRAFFIC_4     = 0x34;   // '4'
 const bit<8>  P4TRAFFIC_VER   = 0x01;   // v0.1
+const bit<8>  P4TRAFFIC_J1    = 0x01;
+const bit<8>  P4TRAFFIC_J2    = 0x02;
+const bit<8>  P4TRAFFIC_J3    = 0x03;
+const bit<8>  P4TRAFFIC_J4    = 0x04;
 /* TODO
  * add more relevant headers to the protocol
  */
@@ -76,12 +84,12 @@ header p4traffic_t {
     bit<8> p;
     bit<8> four;
     bit<8> ver;
-    bit<8> current_green;
+    bit<8> green_light;
+    bit<8> green_car;
     bit<8> j1_car;
     bit<8> j2_car;
     bit<8> j3_car;
     bit<8> j4_car;
-    bit<32> REDUNDANT;
     bit<8> j1_result;
     bit<8> j2_result;
     bit<8> j3_result;
@@ -159,7 +167,7 @@ control MyIngress(inout headers hdr,
     /* TODO
      * set the bit size of the result
      */
-    action send_back(bit<> result) {
+    action send_back() {
         /* TODO
          * - put the result back in hdr.p4traffic.res
          * - swap MAC addresses in hdr.ethernet.dstAddr and
@@ -170,7 +178,7 @@ control MyIngress(inout headers hdr,
          */
         
         // put result into hdr.p4traffic.res
-        hdr.p4traffic.res = result;
+        // hdr.p4traffic.res = result;
         
         // swap mac address
         bit<48> tmp_mac;
@@ -181,40 +189,70 @@ control MyIngress(inout headers hdr,
         //send it back to the same port
         standard_metadata.egress_spec = standard_metadata.ingress_port;
     }
-    
-    action loop_around(bit<8> current_green) {
-    	// Lets us loop around all 4 junctions
+
+    action quiet() {
+    	if (hdr.p4traffic.j2_car > 0) {
+    	    hdr.p4traffic.j2_result = 0x01;	   
+    	}
     	
+    	if (hdr.p4traffic.j1_result == 0x01) {
+    	    hdr.p4traffic.green_light = 0x01;
+    	    hdr.p4traffic.green_car = hdr.p4traffic.j1_car;
+    	    hdr.p4traffic.j2_result = 0x00;
+    	    hdr.p4traffic.j3_result = 0x00;
+    	    hdr.p4traffic.j4_result = 0x00;
+    	} else if (hdr.p4traffic.j2_result == 0x01) {
+    	    hdr.p4traffic.green_light = 0x02;
+    	    hdr.p4traffic.green_car = hdr.p4traffic.j2_car;
+    	    hdr.p4traffic.j1_result = 0x00;
+    	    hdr.p4traffic.j3_result = 0x00;
+    	    hdr.p4traffic.j4_result = 0x00;
+    	} else if (hdr.p4traffic.j3_result == 0x01) {
+    	    hdr.p4traffic.green_light = 0x03;
+    	    hdr.p4traffic.green_car = hdr.p4traffic.j3_car;
+    	    hdr.p4traffic.j1_result = 0x00;
+    	    hdr.p4traffic.j2_result = 0x00;
+    	    hdr.p4traffic.j4_result = 0x00;
+    	} else if (hdr.p4traffic.j4_result == 0x01) {
+    	    hdr.p4traffic.green_light = 0x04;
+    	    hdr.p4traffic.green_car = hdr.p4traffic.j4_car;
+    	    hdr.p4traffic.j1_result = 0x00;
+    	    hdr.p4traffic.j2_result = 0x00;
+    	    hdr.p4traffic.j3_result = 0x00;
+    	}
+    }
+    
+    action operation_drop() {
+        mark_to_drop(standard_metadata);
     }
 
-    action determine_busy() {
-    	
-    }
-    
-    
     
     table traffic_control {
         key = {
-            hdr.p4traffic.event : exact;
+            hdr.p4traffic.green_light : exact;
         }
         actions = {
-            event_quiet;
-            
+            quiet();            
         }
-        const default_action = event_quiet();
+        const default_action = quiet();
+        // can look at the current green light and proceed from there. so the functions to call are the different starting points
         const entries = {
-            P4TRAFFIC_QUIET : event_quiet();
-            
+            P4TRAFFIC_J1 : quiet();
+            P4TRAFFIC_J2 : quiet();
+            P4TRAFFIC_J3 : quiet();
+            P4TRAFFIC_J4 : quiet();
         }
     }
     
     apply {
-        if (hdr.p4calc.isValid()) {
-            calculate.apply();
+    	if (hdr.p4traffic.isValid()) {
+            traffic_control.apply();
         } else {
             operation_drop();
         }
     }
+    
+    
 }
 
 /*************************************************************************
@@ -240,7 +278,7 @@ control MyComputeChecksum(inout headers hdr, inout metadata meta) {
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
-        packet.emit(hdr.p4calc);
+        packet.emit(hdr.p4traffic);
     }
 }
 
