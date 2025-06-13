@@ -6,6 +6,21 @@ import random
 
 from scapy.all import *
 
+"""
+CONSTANTS
+"""
+SLEEP_TIME = 0.5 # Amount of seconds to sleep in some of the sleep functions. Useful for reading command-line outputs
+SECONDS_PER_ITERATION = 2 # Amount of seconds each iteration of the while loop should model
+CARS_PER_ITERATION = 2 # Number of cars that can pass through the junction each iteration
+
+# Percentage chance at each iteration this junction will get a new car incoming
+J1_CHANCE = 30
+J2_CHANCE = 70
+J3_CHANCE = 60
+J4_CHANCE = 50
+
+
+
 class P4Traffic(Packet):
     name = "P4Traffic"
     fields_desc = [ StrFixedLenField("P", "P", length=1),
@@ -19,9 +34,7 @@ class P4Traffic(Packet):
                     XByteField("J2_car", 0x00),
                     XByteField("J3_car", 0x00),
                     XByteField("J4_car", 0x00),
-                    XByteField("New_green_car", 0x00),
-                    XByteField("Busy", 0x00),# A byte determining which is the next busy junction in the cycle
-                    XByteField("Iterations", 0x01)] # How many iterations each signal from P4Pi is worth
+                    XByteField("New_green_car", 0x00)]
 
 bind_layers(Ether, P4Traffic, type=0x1234)
 
@@ -39,14 +52,13 @@ def get_if():
     return iface
     
 def simulate(cars, junction_timer, consecutive_timer):
-    print(f"junc = {junction_timer}, cons = {consecutive_timer}")
-    time.sleep(2) # additional sleep to help read the CLI output
-    junction_timer += 2
-    consecutive_timer += 2
-    if cars >= 1:
-    	return cars - 1, junction_timer, consecutive_timer
+    time.sleep(SLEEP_TIME) # let the time taken for a car to clear the junction be 2s.
+    junction_timer += SECONDS_PER_ITERATION
+    consecutive_timer += SECONDS_PER_ITERATION
+    if cars - CARS_PER_ITERATION > 0:
+    	return cars - CARS_PER_ITERATION, junction_timer, consecutive_timer
     else:
-    	return cars, junction_timer, consecutive_timer
+    	return 0, junction_timer, consecutive_timer
 
 def main():
 
@@ -92,52 +104,51 @@ def main():
                     if p4traffic.Green_Light != old_green:
                         new_green = p4traffic.Green_Light
                         old_green = p4traffic.Green_Light
-                    # simulate the flow of traffic
-                    for _ in range(p4traffic.Iterations):
-                        newcar, junction_timer, consecutive_timer = simulate(p4traffic.Green_Car, p4traffic.Junction_Timer, p4traffic.Consecutive_Timer) 
+                    # simulate the 
+                    newcar, junction_timer, consecutive_timer = simulate(p4traffic.Green_Car, p4traffic.Junction_Timer, p4traffic.Consecutive_Timer) 
                     
-                        addn_j1_car = random.choices([0, 1], weights=[80, 20])[0]
-                        addn_j2_car = random.choices([0, 1], weights=[90, 10])[0]
-                        addn_j3_car = random.choices([0, 1], weights=[80, 20])[0]
-                        addn_j4_car = random.choices([0, 1], weights=[85, 15])[0]
+                    addn_j1_car = random.choices([0, 1], weights=[100-J1_CHANCE, J1_CHANCE])[0]
+                    addn_j2_car = random.choices([0, 1], weights=[100-J2_CHANCE, J2_CHANCE])[0]
+                    addn_j3_car = random.choices([0, 1], weights=[100-J3_CHANCE, J3_CHANCE])[0]
+                    addn_j4_car = random.choices([0, 1], weights=[100-J4_CHANCE, J4_CHANCE])[0]
                                        
-                        if p4traffic.Green_Light == 0x01:   	            	    
-                            j1_car = newcar
-                            new_green_car = addn_j1_car
-                        elif p4traffic.Green_Light == 0x02:
-                            j2_car = newcar
-                            new_green_car = addn_j2_car
-                        elif p4traffic.Green_Light == 0x03:
-                            j3_car = newcar
-                            new_green_car = addn_j3_car
-                        elif p4traffic.Green_Light == 0x04:
-                            j4_car = newcar
-                            new_green_car = addn_j4_car
-                        print(j1_car, j2_car, j3_car, j4_car)
-                        time.sleep(2) # additional sleep to help read the CLI output
+                    if p4traffic.Green_Light == 0x01:   	            	    
+                        j1_car = newcar
+                        new_green_car = addn_j1_car
+                    elif p4traffic.Green_Light == 0x02:
+                        j2_car = newcar
+                        new_green_car = addn_j2_car
+                    elif p4traffic.Green_Light == 0x03:
+                        j3_car = newcar
+                        new_green_car = addn_j3_car
+                    elif p4traffic.Green_Light == 0x04:
+                        j4_car = newcar
+                        new_green_car = addn_j4_car
+                    print(j1_car, j2_car, j3_car, j4_car)
+                    time.sleep(SLEEP_TIME) # additional sleep to help read the CLI output
                     
-                        j1_car += addn_j1_car
-                        j2_car += addn_j2_car
-                        j3_car += addn_j3_car
-                        j4_car += addn_j4_car
+                    j1_car += addn_j1_car
+                    j2_car += addn_j2_car
+                    j3_car += addn_j3_car
+                    j4_car += addn_j4_car
                                  
-                        print(f"After new cars have entered, if any:")
-                        print(j1_car, j2_car, j3_car, j4_car)
-                        print(f"green light is at {p4traffic.Green_Light}")
-                        print(f"junction timer is {p4traffic.Junction_Timer}")
-                        print(f"consecutive timer is {p4traffic.Consecutive_Timer}")
-                        print(f"end of loop")
-                        print("\n")
-                        time.sleep(2) # additional sleep to help read the CLI output
+                    print(f"After new cars have entered, if any:")
+                    print(j1_car, j2_car, j3_car, j4_car)
+                    print(f"green light is at {p4traffic.Green_Light}")
+                    print(f"junction timer is {p4traffic.Junction_Timer}")
+                    print(f"consecutive timer is {p4traffic.Consecutive_Timer}")
+                    print(f"end of loop")
+                    print("\n")
+                    time.sleep(SLEEP_TIME) # additional sleep to help read the CLI output
     	        else:
     	            print("cannot find P4Traffic header in the packet")
     	        
     	    else:
     	        print("Didn't receive response")
-    	        sys.exit(5)
+    	        sys.exit(3)
     	except Exception as error:
     	    print(error)
-    	    sys.exit(6)
+    	    sys.exit(4)
     	
 if __name__ == '__main__':
     main()

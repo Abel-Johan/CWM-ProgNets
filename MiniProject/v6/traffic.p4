@@ -10,9 +10,6 @@
  * This program implements a simple protocol. It can be carried over Ethernet
  * (Ethertype 0x1234).
  
- * TODO
- * give a format of what the header should look like
- 
  * The Protocol header looks like this:
  *
  *         0                 1                 2               3                4                 5
@@ -21,8 +18,6 @@
  * +-----------------+-----------------+----------------+----------------+----------------+----------------+
  * |Consecutive_Timer|     J1_car      |     J2_car     |     J3_car     |     J4_car     |  New_green_car |
  * +-----------------+-----------------+----------------+----------------+----------------+----------------+
- * |      Busy       |    Iterations   |
- * +-----------------+-----------------+
  *
  * P is an ASCII Letter 'P' (0x50)
  * 4 is an ASCII Letter '4' (0x34)
@@ -73,9 +68,10 @@ const bit<8>  P4TRAFFIC_J1    = 0x01;
 const bit<8>  P4TRAFFIC_J2    = 0x02;
 const bit<8>  P4TRAFFIC_J3    = 0x03;
 const bit<8>  P4TRAFFIC_J4    = 0x04;
-/* TODO
- * add more relevant headers to the protocol
- */
+
+const bit<8> HARD_LIMIT = 20; // Maximum time a junction stays green
+const bit<8> MAX_WAIT = 4; // Maximum interval between two cars approaching the green direction that the traffic light will wait for
+
 
 
 header p4traffic_t {
@@ -90,14 +86,7 @@ header p4traffic_t {
     bit<8> j2_car;
     bit<8> j3_car;
     bit<8> j4_car;
-    bit<8> new_green_car;
-    bit<8> busy;
-    bit<8> iterations;
-
-    /* TODO
-     * define the other headers in the correct order
-     */
-  
+    bit<8> new_green_car; 
 }
 
 /*
@@ -164,11 +153,8 @@ control MyVerifyChecksum(inout headers hdr,
 control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
-                  
-    action send_back() {        
-        // put result into hdr.p4traffic.res
-        // hdr.p4traffic.res = result;
-        
+
+    action send_back() {
         // swap mac address
         bit<48> tmp_mac;
         tmp_mac = hdr.ethernet.dstAddr;
@@ -203,13 +189,13 @@ control MyIngress(inout headers hdr,
     action check_if_should_change(bit<8> green_light, bit<8> new_green_car) {
         bit<8> new_green;
         new_green = green_light;
-        if (hdr.p4traffic.junction_timer == 20) {
+        if (hdr.p4traffic.junction_timer == HARD_LIMIT) {
             new_green = green_light + 1;
             hdr.p4traffic.consecutive_timer = 0;
             hdr.p4traffic.junction_timer = 0;
-        } else if ((new_green_car > 0) && (hdr.p4traffic.consecutive_timer <= 4)) {
+        } else if ((new_green_car > 0) && (hdr.p4traffic.consecutive_timer <= MAX_WAIT)) {
             hdr.p4traffic.consecutive_timer = 0;
-        } else if (hdr.p4traffic.consecutive_timer > 4) {
+        } else if (hdr.p4traffic.consecutive_timer > MAX_WAIT) {
             new_green = green_light + 1;
             hdr.p4traffic.consecutive_timer = 0;
             hdr.p4traffic.junction_timer = 0;
@@ -226,141 +212,7 @@ control MyIngress(inout headers hdr,
     action operation_drop() {
         mark_to_drop(standard_metadata);
     }
-    
-    action check_busy() {
-        if ((hdr.p4traffic.j1_car >= 5) || (hdr.p4traffic.j2_car >= 5) || (hdr.p4traffic.j3_car >= 5) || (hdr.p4traffic.j4_car >= 5)) {
-            hdr.p4traffic.busy = 1;
-        }
-    }
-    
-    // this means entrance 1 is busy
-    action implement_busy1() {
-        bit<8> green_light;
-        bit<8> new_green;
-        bit<8> new_green_car;
-        green_light = hdr.p4traffic.green_light;
-        new_green = green_light;
-        new_green_car = hdr.p4traffic.new_green_car;
-        
-        if (green_light != 0x01) {
-            // but now the max timer is only 8s
-            if (hdr.p4traffic.junction_timer == 8) {
-                new_green = green_light + 1;
-                hdr.p4traffic.consecutive_timer = 0;
-                hdr.p4traffic.junction_timer = 0;
-            } else if ((new_green_car > 0) && (hdr.p4traffic.consecutive_timer <= 4)) {
-                hdr.p4traffic.consecutive_timer = 0;
-            } else if (hdr.p4traffic.consecutive_timer > 4) {
-                new_green = green_light + 1;
-                hdr.p4traffic.consecutive_timer = 0;
-                hdr.p4traffic.junction_timer = 0;
-            }
-        
-            if (new_green > 4) {
-                new_green = new_green - 4; // loop around
-            }
-        
-            hdr.p4traffic.green_light = new_green;
-        } else {
-            hdr.p4traffic.iterations = 10; // give it 10 uninterruptible iterations
-        }
-    }
-    
-    action implement_busy2() {
-        bit<8> green_light;
-        bit<8> new_green;
-        bit<8> new_green_car;
-        green_light = hdr.p4traffic.green_light;
-        new_green = green_light;
-        new_green_car = hdr.p4traffic.new_green_car;
-        
-        if (green_light != 0x02) {
-            // but now the max timer is only 8s
-            if (hdr.p4traffic.junction_timer == 8) {
-                new_green = green_light + 1;
-                hdr.p4traffic.consecutive_timer = 0;
-                hdr.p4traffic.junction_timer = 0;
-            } else if ((new_green_car > 0) && (hdr.p4traffic.consecutive_timer <= 4)) {
-                hdr.p4traffic.consecutive_timer = 0;
-            } else if (hdr.p4traffic.consecutive_timer > 4) {
-                new_green = green_light + 1;
-                hdr.p4traffic.consecutive_timer = 0;
-                hdr.p4traffic.junction_timer = 0;
-            }
-        
-            if (new_green > 4) {
-                new_green = new_green - 4; // loop around
-            }
-        
-            hdr.p4traffic.green_light = new_green;
-        } else {
-            hdr.p4traffic.iterations = 10; // give it 10 uninterruptible iterations
-        }
-    }
-    
-    action implement_busy3() {
-        bit<8> green_light;
-        bit<8> new_green;
-        bit<8> new_green_car;
-        green_light = hdr.p4traffic.green_light;
-        new_green = green_light;
-        new_green_car = hdr.p4traffic.new_green_car;
-        
-        if (green_light != 0x03) {
-            // but now the max timer is only 8s
-            if (hdr.p4traffic.junction_timer == 8) {
-                new_green = green_light + 1;
-                hdr.p4traffic.consecutive_timer = 0;
-                hdr.p4traffic.junction_timer = 0;
-            } else if ((new_green_car > 0) && (hdr.p4traffic.consecutive_timer <= 4)) {
-                hdr.p4traffic.consecutive_timer = 0;
-            } else if (hdr.p4traffic.consecutive_timer > 4) {
-                new_green = green_light + 1;
-                hdr.p4traffic.consecutive_timer = 0;
-                hdr.p4traffic.junction_timer = 0;
-            }
-        
-            if (new_green > 4) {
-                new_green = new_green - 4; // loop around
-            }
-        
-            hdr.p4traffic.green_light = new_green;
-        } else {
-            hdr.p4traffic.iterations = 10; // give it 10 uninterruptible iterations
-        }
-    }
-    
-    action implement_busy4() {
-        bit<8> green_light;
-        bit<8> new_green;
-        bit<8> new_green_car;
-        green_light = hdr.p4traffic.green_light;
-        new_green = green_light;
-        new_green_car = hdr.p4traffic.new_green_car;
-        
-        if (green_light != 0x04) {
-            // but now the max timer is only 8s
-            if (hdr.p4traffic.junction_timer == 8) {
-                new_green = green_light + 1;
-                hdr.p4traffic.consecutive_timer = 0;
-                hdr.p4traffic.junction_timer = 0;
-            } else if ((new_green_car > 0) && (hdr.p4traffic.consecutive_timer <= 4)) {
-                hdr.p4traffic.consecutive_timer = 0;
-            } else if (hdr.p4traffic.consecutive_timer > 4) {
-                new_green = green_light + 1;
-                hdr.p4traffic.consecutive_timer = 0;
-                hdr.p4traffic.junction_timer = 0;
-            }
-        
-            if (new_green > 4) {
-                new_green = new_green - 4; // loop around
-            }
-        
-            hdr.p4traffic.green_light = new_green;
-        } else {
-            hdr.p4traffic.iterations = 10; // give it 10 uninterruptible iterations
-        }
-    }
+
     
     table traffic_control {
         key = {
@@ -382,46 +234,19 @@ control MyIngress(inout headers hdr,
         }
     }
     
-    table busy_control {
-        key = {
-            hdr.p4traffic.busy : exact;
-        }
-        actions = {
-            implement_busy1;
-            implement_busy2;
-            implement_busy3;
-            implement_busy4;
-            NoAction;
-        }
-        const default_action = NoAction();
-        
-        const entries = {
-            P4TRAFFIC_J1 : implement_busy1();
-            P4TRAFFIC_J2 : implement_busy2();
-            P4TRAFFIC_J3 : implement_busy3();
-            P4TRAFFIC_J4 : implement_busy4(); 
-        }
-    }
-    
     apply {
     	if (hdr.p4traffic.isValid()) {
             traffic_control.apply();
             check_if_should_change(hdr.p4traffic.green_light, hdr.p4traffic.new_green_car);
-            check_busy();
-            if (hdr.p4traffic.busy == 0) {
-                if (hdr.p4traffic.green_light == 0x01) {
-                    quiet(hdr.p4traffic.j1_car);
-                } else if (hdr.p4traffic.green_light == 0x02) {
-                    quiet(hdr.p4traffic.j2_car);
-                } else if (hdr.p4traffic.green_light == 0x03) {
-                    quiet(hdr.p4traffic.j3_car);
-                } else if (hdr.p4traffic.green_light == 0x04) {
-                    quiet(hdr.p4traffic.j4_car);
-                }
-            } else {
-                busy_control.apply();
+            if (hdr.p4traffic.green_light == 0x01) {
+                quiet(hdr.p4traffic.j1_car);
+            } else if (hdr.p4traffic.green_light == 0x02) {
+                quiet(hdr.p4traffic.j2_car);
+            } else if (hdr.p4traffic.green_light == 0x03) {
+                quiet(hdr.p4traffic.j3_car);
+            } else if (hdr.p4traffic.green_light == 0x04) {
+                quiet(hdr.p4traffic.j4_car);
             }
-            send_back();
         } else {
             operation_drop();
         }
