@@ -66,6 +66,7 @@ def main():
     print("Added successfully:")
     print(f"{j1_car} cars to Junction 1\n{j2_car} cars to Junction 2\n{j3_car} cars to Junction 3\n{j4_car} cars to Junction 4")
     old_green = 0x01 # green light entrance before it is changed by the P4 script
+    new_green = 0x01 # initialise for the case when we change light
     junction_timer = 0 # initialise timers
     consecutive_timer = 0 # initialise timers
     while True:
@@ -74,6 +75,7 @@ def main():
                                                                           J2_car = j2_car,
                                                                           J3_car = j3_car,
                                                                           J4_car = j4_car,
+                                                                          Green_Light = new_green,
                                                                           Junction_Timer = junction_timer,
                                                                           Consecutive_Timer = consecutive_timer)
     	    pkt = pkt/' '
@@ -84,8 +86,9 @@ def main():
     	        if p4traffic:
                     # if the green light changed entrances, then reset the timer
                     if p4traffic.Green_Light != old_green:
-                        p4traffic.Junction_Timer = 0
-                        p4traffic.Consecutive_Timer = 0
+                        new_green = p4traffic.Green_Light
+                        junction_timer = 0
+                        consecutive_timer = 0
                     # simulate the 
                     newcar, junction_timer, consecutive_timer = simulate(p4traffic.Green_Car, p4traffic.Junction_Timer, p4traffic.Consecutive_Timer) 
                     
