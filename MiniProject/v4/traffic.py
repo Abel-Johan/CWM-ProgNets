@@ -93,10 +93,10 @@ def main():
                     # simulate the 
                     newcar, junction_timer, consecutive_timer = simulate(p4traffic.Green_Car, p4traffic.Junction_Timer, p4traffic.Consecutive_Timer) 
                     
-                    addn_j1_car = random.choices([0, 1], weights=[80, 20])[0]
-                    addn_j2_car = random.choices([0, 1], weights=[90, 10])[0]
-                    addn_j3_car = random.choices([0, 1], weights=[80, 20])[0]
-                    addn_j4_car = random.choices([0, 1], weights=[85, 15])[0]
+                    addn_j1_car = random.choices([0, 1], weights=[10, 90])[0]
+                    addn_j2_car = random.choices([0, 1], weights=[30, 70])[0]
+                    addn_j3_car = random.choices([0, 1], weights=[20, 80])[0]
+                    addn_j4_car = random.choices([0, 1], weights=[15, 85])[0]
                                        
                     if p4traffic.Green_Light == 0x01:   	            	    
                         j1_car = newcar
