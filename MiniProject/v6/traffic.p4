@@ -70,23 +70,25 @@ const bit<8>  P4TRAFFIC_J3    = 0x03;
 const bit<8>  P4TRAFFIC_J4    = 0x04;
 
 const bit<8> HARD_LIMIT = 20; // Maximum time a junction stays green
-const bit<8> MAX_WAIT = 4; // Maximum interval between two cars approaching the green direction that the traffic light will wait for
+const bit<8> MAX_WAIT = 4; // Maximum interval between two cars approaching the
+                           // green direction that the traffic light will wait for
 
-
-
+/*
+ * Define the header fields expected from the sent packet
+ */
 header p4traffic_t {
     bit<8> p;
     bit<8> four;
     bit<8> ver;
-    bit<8> green_light;
-    bit<8> green_car;
-    bit<8> junction_timer;
-    bit<8> consecutive_timer;
-    bit<8> j1_car;
-    bit<8> j2_car;
-    bit<8> j3_car;
-    bit<8> j4_car;
-    bit<8> new_green_car; 
+    bit<8> green_light;       // Which entrance the green light is at now
+    bit<8> green_car;         // How many cars there are at the greenlit entrance
+    bit<8> junction_timer;    // Timer for how long the light has been green at a particular entrance
+    bit<8> consecutive_timer; // Timer between new cars entering the same entrance of a green entrance
+    bit<8> j1_car;            // Number
+    bit<8> j2_car;            // of cars
+    bit<8> j3_car;            // at each
+    bit<8> j4_car;            // entrance
+    bit<8> new_green_car;     // Number of cars entering the green junction at each iteration
 }
 
 /*
@@ -153,7 +155,8 @@ control MyVerifyChecksum(inout headers hdr,
 control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
-
+    
+    // Send the packet to the address it came from
     action send_back() {
         // swap mac address
         bit<48> tmp_mac;
@@ -247,6 +250,7 @@ control MyIngress(inout headers hdr,
             } else if (hdr.p4traffic.green_light == 0x04) {
                 quiet(hdr.p4traffic.j4_car);
             }
+            send_back();
         } else {
             operation_drop();
         }
